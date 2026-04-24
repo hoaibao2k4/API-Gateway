@@ -1,0 +1,51 @@
+spring:
+  config:
+    import: optional:file:.env[.properties]
+  application:
+    name: gateway
+
+  security:
+    oauth2:
+      client:
+        registration:
+          keycloak:
+            client-id: "client-springboot"
+            client-secret: "MieL8qEIVKH9rygVsyorCoZ3RPVtYBZb"
+            scope: openid, profile, email
+            authorization-grant-type: authorization_code
+            provider: keycloak
+        provider:
+          keycloak:
+            issuer-uri: "http://localhost:8033/realms/Ecommerce-Realm"
+
+  session:
+    redis:
+      namespace: "spring:session:gateway"
+
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      timeout: 60000ms
+      jedis:
+        pool:
+          max-active: 8
+          max-idle: 8
+          min-idle: 0
+
+  cloud:
+    gateway:
+      server:
+        webflux:
+          default-filters:
+            - DedupeResponseHeader=Access-Control-Allow-Credentials Access-Control-Allow-Origin
+            - TokenRelay
+          routes:
+            - id: ecommerce-service
+              uri: ${ECOMMERCE_URI:http://localhost:8081}
+              predicates:
+                - Path=/api/v1/**   
+
+server:
+  port: ${SERVER_PORT:8080}
