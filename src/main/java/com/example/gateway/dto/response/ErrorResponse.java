@@ -1,4 +1,4 @@
-package com.example.gateway.dto;
+package com.example.gateway.dto.response;
 
 import java.time.LocalDateTime;
 import lombok.AllArgsConstructor;

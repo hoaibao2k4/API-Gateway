@@ -6,14 +6,20 @@ import java.util.Map;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.ReactiveStringRedisTemplate;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 
+import com.example.gateway.dto.request.WebhookEventRequest;
+import com.example.gateway.dto.response.WebhookResponse;
 import com.example.gateway.services.TokenBlacklistService;
 
+import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.Mono;
 
 @Service
+@Slf4j
 public class TokenBlacklistServiceImpl implements TokenBlacklistService {
 
     private final ReactiveStringRedisTemplate redisTemplate;
@@ -30,26 +36,26 @@ public class TokenBlacklistServiceImpl implements TokenBlacklistService {
     }
 
     @Override
-    public Mono<ResponseEntity<Map<String, String>>> handleWebhookEvent(Map<String, Object> event) {
-        String type = (String) event.getOrDefault("type", "");
-        String resourceType = (String) event.getOrDefault("resourceType", "");
-        String resourcePath = (String) event.getOrDefault("resourcePath", "");
+    public Mono<ResponseEntity<WebhookResponse>> handleWebhookEvent(WebhookEventRequest event) {
+        String type = event.getType() != null ? event.getType() : "";
+        String resourceType = event.getResourceType() != null ? event.getResourceType() : "";
+        String resourcePath = event.getResourcePath() != null ? event.getResourcePath() : "";
 
         // admin change role mapping
-        // P2-inc plugin send type "admin.CLIENT_ROLE_MAPPING-CREATE"
         if (type.startsWith("admin.") && isRoleMappingEvent(resourceType)) {
             String userId = extractUserIdFromResourcePath(resourcePath);
             if (userId != null) {
                 return blacklistUser(userId)
-                        .then(Mono.just(ResponseEntity.ok(Map.of(
-                                "status", "processed",
-                                "userId", userId,
-                                "action", "blacklisted"))));
+                        .then(Mono.just(ResponseEntity.ok(WebhookResponse.builder()
+                                .status("processed")
+                                .userId(userId)
+                                .action("blacklisted")
+                                .build())));
             }
         }
 
         // other events : ignored
-        return Mono.just(ResponseEntity.ok(Map.of("status", "ignored")));
+        return Mono.just(ResponseEntity.ok(WebhookResponse.builder().status("ignored").build()));
     }
 
     @Override
@@ -59,6 +65,8 @@ public class TokenBlacklistServiceImpl implements TokenBlacklistService {
         String issuedAt = String.valueOf(Instant.now().toEpochMilli());
         return redisTemplate.opsForValue()
                 .set(key, issuedAt, blacklistTtl)
+                .doOnError(e -> log.error("Failed to blacklist user {} in Redis: {}", keycloakUserId, e.getMessage()))
+                .onErrorMap(e -> new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Redis operation failed", e))
                 .then();
     }
 

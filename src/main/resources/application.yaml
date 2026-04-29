@@ -9,14 +9,14 @@ spring:
       client:
         registration:
           keycloak:
-            client-id: "client-springboot"
-            client-secret: "MieL8qEIVKH9rygVsyorCoZ3RPVtYBZb"
+            client-id: ${KEYCLOAK_CLIENT_ID}
+            client-secret: ${KEYCLOAK_CLIENT_SECRET}
             scope: openid, profile, email
             authorization-grant-type: authorization_code
             provider: keycloak
         provider:
           keycloak:
-            issuer-uri: "http://localhost:8033/realms/Ecommerce-Realm"
+            issuer-uri: ${KEYCLOAK_URL:http://localhost:8033}/realms/${KEYCLOAK_REALM}
 
   session:
     redis:
@@ -24,9 +24,9 @@ spring:
 
   data:
     redis:
-      host: ${REDIS_HOST:localhost}
-      port: ${REDIS_PORT:6379}
-      password: ${REDIS_PASSWORD:}
+      host: ${SPRING_REDIS_HOST:localhost}
+      port: ${SPRING_REDIS_PORT:6379}
+      password: ${SPRING_REDIS_PASSWORD}
       timeout: 60000ms
       jedis:
         pool:

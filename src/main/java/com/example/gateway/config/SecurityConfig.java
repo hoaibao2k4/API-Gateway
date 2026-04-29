@@ -6,6 +6,7 @@ import java.util.List;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.reactive.EnableWebFluxSecurity;
 import org.springframework.security.config.web.server.ServerHttpSecurity;
@@ -37,8 +38,9 @@ public class SecurityConfig {
 
         http
                 .authorizeExchange(exchanges -> exchanges
-                        .pathMatchers("/api/v1/**", "/oauth2/**", "/api/v1/auth/webhook").permitAll()
-                        .pathMatchers("/api/v1/auth/logout-all").authenticated()
+                        .pathMatchers("/oauth2/**", "/api/v1/auth/webhook").permitAll()
+                        .pathMatchers(HttpMethod.GET, "/api/v1/products/**", "/api/v1/categories/**").permitAll()
+                        .pathMatchers("/api/v1/**").authenticated()
                         .anyExchange().authenticated())
                         // redirect to KC login page
                 .oauth2Login(oauth2 -> oauth2

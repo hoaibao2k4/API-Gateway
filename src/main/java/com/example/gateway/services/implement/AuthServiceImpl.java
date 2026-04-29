@@ -1,24 +1,28 @@
 package com.example.gateway.services.implement;
 
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.oauth2.client.OAuth2AuthorizedClient;
 import org.springframework.security.oauth2.core.oidc.user.OidcUser;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.BodyInserters;
 import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.server.ResponseStatusException;
 
+import com.example.gateway.dto.response.MyInfoResponse;
 import com.example.gateway.services.AuthService;
 import com.example.gateway.services.TokenBlacklistService;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.Mono;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class AuthServiceImpl implements AuthService {
@@ -32,19 +36,18 @@ public class AuthServiceImpl implements AuthService {
   private final TokenBlacklistService tokenBlacklistService;
 
     @Override
-    public Mono<Map<String, Object>> getMyInfo(OidcUser principle) {
-      if (principle == null)
-        return Mono.just(Map.of("authenticated", false));
+    public Mono<MyInfoResponse> getMyInfo(OidcUser principal) {
+      if (principal == null)
+        return Mono.just(MyInfoResponse.builder().authenticated(false).build());
 
-      List<Object> roles = principle.getAttribute("client_roles");
+      List<Object> roles = principal.getAttribute("client_roles");
 
-      Map<String, Object> claims = new HashMap<>();
-
-      claims.put("username", principle.getPreferredUsername() != null ? principle.getPreferredUsername() : "");
-      claims.put("email", principle.getEmail() != null ? principle.getEmail() : "");
-      claims.put("role", roles != null ? roles.get(0) : "");
-
-      return Mono.just(claims);
+      return Mono.just(MyInfoResponse.builder()
+          .username(principal.getPreferredUsername() != null ? principal.getPreferredUsername() : "")
+          .email(principal.getEmail() != null ? principal.getEmail() : "")
+          .role(roles != null && !roles.isEmpty() ? (String) roles.get(0) : "")
+          .authenticated(true)
+          .build());
     }
 
     @Override
@@ -60,7 +63,8 @@ public class AuthServiceImpl implements AuthService {
       return getServiceAccountToken(clientId, clientSecret)
           .flatMap(adminToken -> deleteAllUserSessions(adminToken, userId))
           .then(tokenBlacklistService.blacklistUser(userId))
-          .onErrorResume(e -> Mono.empty());
+          .doOnError(e -> log.error("Failed to logout all devices for user {}: {}", userId, e.getMessage()))
+          .onErrorMap(e -> new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Failed to logout all devices from Keycloak", e));
     }
 
   // get service account token by client credentials flow
